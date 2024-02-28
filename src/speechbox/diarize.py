@@ -34,10 +34,14 @@ class ASRDiarizationPipeline:
             "automatic-speech-recognition",
             model=asr_model,
             chunk_length_s=chunk_length_s,
-            token=use_auth_token, # 08/25/2023: Changed argument from use_auth_token to token
+            token=use_auth_token,  # 08/25/2023: Changed argument from use_auth_token to token
             **kwargs,
         )
-        diarization_pipeline = Pipeline.from_pretrained(diarizer_model, use_auth_token=use_auth_token)
+        diarization_pipeline = Pipeline.from_pretrained(
+            diarizer_model,
+            use_auth_token=use_auth_token,
+            cache_dir="./",
+        )
         return cls(asr_pipeline, diarization_pipeline)
 
     def __call__(
@@ -77,7 +81,7 @@ class ASRDiarizationPipeline:
                         - To update the asr configuration, use the prefix *asr_* for each configuration parameter.
                         - To update the diarization configuration, use the prefix *diarization_* for each configuration parameter.
                         - Added this support related to issue #25: 08/25/2023
-                            
+
         Return:
             A list of transcriptions. Each list item corresponds to one chunk / segment of transcription, and is a
             dictionary with the following keys:
@@ -90,9 +94,11 @@ class ASRDiarizationPipeline:
         }
 
         kwargs_diarization = {
-            argument[len("diarization_") :]: value for argument, value in kwargs.items() if argument.startswith("diarization_")
+            argument[len("diarization_") :]: value
+            for argument, value in kwargs.items()
+            if argument.startswith("diarization_")
         }
-        
+
         inputs, diarizer_inputs = self.preprocess(inputs)
 
         diarization = self.diarization_pipeline(
@@ -102,9 +108,7 @@ class ASRDiarizationPipeline:
 
         segments = []
         for segment, track, label in diarization.itertracks(yield_label=True):
-            segments.append({'segment': {'start': segment.start, 'end': segment.end},
-                             'track': track,
-                             'label': label})
+            segments.append({"segment": {"start": segment.start, "end": segment.end}, "track": track, "label": label})
 
         # diarizer output may contain consecutive segments from the same speaker (e.g. {(0 -> 1, speaker_1), (1 -> 1.5, speaker_1), ...})
         # we combine these segments to give overall timestamps for each speaker's turn (e.g. {(0 -> 1.5, speaker_1), ...})
